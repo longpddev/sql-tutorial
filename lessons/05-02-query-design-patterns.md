@@ -664,4 +664,4 @@ MySQL uses `INSERT ... ON DUPLICATE KEY UPDATE` to achieve upsert functionality 
 
 [← Previous: Schema Design Patterns](05-01-schema-design-patterns.md) | [Next → Performance Patterns](05-03-performance-patterns.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

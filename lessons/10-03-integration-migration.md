@@ -963,4 +963,4 @@ Consider data consistency requirements, network latency, security and access con
 
 [← Previous: Security and Compliance](10-02-security-compliance.md) | [Next → E-commerce Database Design Project](project-01-ecommerce-database.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

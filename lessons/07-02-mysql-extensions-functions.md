@@ -700,4 +700,4 @@ Benefits: Better performance, reduced application complexity, leveraging databas
 
 [← Previous: Storage Engines](07-01-storage-engines.md) | [Next → Replication and High Availability](07-03-replication-high-availability.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

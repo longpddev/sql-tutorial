@@ -492,4 +492,4 @@ Use `SHOW TABLE STATUS LIKE 'table_name'` or query `information_schema.tables` t
 
 [← Previous: Deadlock Detection and Prevention](06-03-deadlock-detection-prevention.md) | [Next → MySQL Extensions and Functions](07-02-mysql-extensions-functions.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

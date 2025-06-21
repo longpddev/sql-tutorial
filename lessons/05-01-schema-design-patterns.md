@@ -622,4 +622,4 @@ Junction tables resolve many-to-many relationships by creating a bridge table th
 
 [← Previous: Aggregate Functions and Grouping](04-04-aggregate-functions-grouping.md) | [Next → Query Design Patterns](05-02-query-design-patterns.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

@@ -443,4 +443,4 @@ Applications should catch deadlock errors (MySQL error 1213), log the occurrence
 
 [← Previous: ACID Properties in Practice](06-01-acid-properties.md) | [Next → Deadlock Detection and Prevention](06-03-deadlock-detection-prevention.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

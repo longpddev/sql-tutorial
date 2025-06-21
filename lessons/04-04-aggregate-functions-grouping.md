@@ -425,4 +425,4 @@ HAVING COUNT(*) > 10;
 
 [← Previous: Window Functions and Analytics](04-03-window-functions-analytics.md) | [Next → Schema Design Patterns](05-01-schema-design-patterns.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

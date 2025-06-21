@@ -615,4 +615,4 @@ Use functions like COALESCE() or IFNULL() to convert NULL values to appropriate 
 
 [← Previous: Data Control Language (DCL) & Transaction Control (TCL)](03-03-data-control-transaction-control.md) | [Next → Subqueries and CTEs](04-02-subqueries-and-ctes.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

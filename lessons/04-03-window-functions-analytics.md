@@ -379,4 +379,4 @@ GROUP BY collapses rows into groups and returns one row per group. Window functi
 
 [← Previous: Subqueries and CTEs](04-02-subqueries-and-ctes.md) | [Next → Aggregate Functions and Grouping](04-04-aggregate-functions-grouping.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

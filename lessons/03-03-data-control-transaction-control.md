@@ -567,4 +567,4 @@ Higher isolation levels (like SERIALIZABLE) provide more consistency guarantees 
 
 [← Previous: Data Manipulation Language (DML)](03-02-data-manipulation-language.md) | [Next → Joins and Relationships](04-01-joins-and-relationships.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

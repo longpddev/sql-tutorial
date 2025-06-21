@@ -61,4 +61,4 @@ A comprehensive SQL tutorial covering foundations to production-level expertise.
 
 **Getting Started**: Begin with [Module 1, Lesson 1](01-01-what-is-sql.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

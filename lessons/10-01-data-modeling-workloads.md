@@ -494,4 +494,4 @@ Use polyglot persistence when different parts of your system have fundamentally 
 
 [← Previous: Monitoring and Maintenance](09-03-monitoring-maintenance.md) | [Next → Security and Compliance](10-02-security-compliance.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

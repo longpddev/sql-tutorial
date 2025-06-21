@@ -636,4 +636,4 @@ Use parallel replication (slave_parallel_workers), optimize slave hardware (fast
 
 [← Previous: MySQL Extensions and Functions](07-02-mysql-extensions-functions.md) | [Next → Query Performance Analysis](08-01-query-performance-analysis.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

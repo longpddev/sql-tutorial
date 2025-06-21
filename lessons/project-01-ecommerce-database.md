@@ -618,4 +618,4 @@ For advanced students, implement these additional features:
 
 [← Previous: Integration and Migration](10-03-integration-migration.md) | [Next → Project 2: Data Warehouse Implementation](project-02-data-warehouse.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

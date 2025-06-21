@@ -421,4 +421,4 @@ Statistics help the optimizer estimate the cost of different execution plans by 
 
 [← Previous: Logical Clause Evaluation Order](02-01-logical-clause-evaluation.md) | [Next → Query Optimization Fundamentals](02-03-query-optimization.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

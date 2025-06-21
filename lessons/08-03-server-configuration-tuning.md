@@ -553,4 +553,4 @@ Disable query cache when:
 
 [← Previous: Index Design and Management](08-02-index-design-management.md) | [Next → Development Phase Issues](09-01-development-phase-issues.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

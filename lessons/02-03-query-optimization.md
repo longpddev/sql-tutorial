@@ -522,4 +522,4 @@ Functions applied to columns prevent the optimizer from using indexes on those c
 
 [← Previous: Physical Execution Behind the Scenes](02-02-physical-execution.md) | [Next → Data Definition Language (DDL)](03-01-data-definition-language.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

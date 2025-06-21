@@ -307,4 +307,4 @@ WHERE filters rows early in the process, reducing the amount of data that needs 
 
 [← Previous: Database Management Systems Deep Dive](01-02-dbms-deep-dive.md) | [Next → Physical Execution Behind the Scenes](02-02-physical-execution.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

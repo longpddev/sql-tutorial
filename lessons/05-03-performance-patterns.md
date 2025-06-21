@@ -716,4 +716,4 @@ Functions in WHERE clauses prevent the optimizer from using indexes efficiently 
 
 [← Previous: Query Design Patterns](05-02-query-design-patterns.md) | [Next → ACID Properties in Practice](06-01-acid-properties.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

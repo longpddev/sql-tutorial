@@ -237,4 +237,4 @@ SQL operations work on entire sets of data at once. A single SELECT statement ca
 
 [Next → Database Management Systems Deep Dive](01-02-dbms-deep-dive.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

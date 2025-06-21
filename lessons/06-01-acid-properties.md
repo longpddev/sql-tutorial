@@ -427,4 +427,4 @@ In an e-commerce system, if atomicity is violated during order processing, you m
 
 [← Previous: Performance Patterns](05-03-performance-patterns.md) | [Next → Isolation Levels and Locking](06-02-isolation-levels-locking.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

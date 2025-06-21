@@ -557,4 +557,4 @@ Use subqueries for: scalar values, EXISTS/NOT EXISTS checks, or when you need th
 
 [← Previous: Data Definition Language (DDL)](03-01-data-definition-language.md) | [Next → Data Control Language (DCL) & Transaction Control (TCL)](03-03-data-control-transaction-control.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

@@ -480,4 +480,4 @@ A good buffer pool hit ratio is above 95%. It represents the percentage of page 
 
 [← Previous: Replication and High Availability](07-03-replication-high-availability.md) | [Next → Index Design and Management](08-02-index-design-management.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

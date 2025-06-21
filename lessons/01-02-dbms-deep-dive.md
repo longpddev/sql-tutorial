@@ -333,4 +333,4 @@ MyISAM might be chosen for read-heavy workloads where you don't need transaction
 
 [← Previous: What is SQL and the Relational Model](01-01-what-is-sql.md) | [Next → Logical Clause Evaluation Order](02-01-logical-clause-evaluation.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

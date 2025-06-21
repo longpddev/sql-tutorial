@@ -538,4 +538,4 @@ Too many indexes:
 
 [← Previous: Query Performance Analysis](08-01-query-performance-analysis.md) | [Next → Server Configuration and Tuning](08-03-server-configuration-tuning.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

@@ -562,4 +562,4 @@ Increasing lock timeout doesn't prevent deadlocks; it just makes them take longe
 
 [← Previous: Isolation Levels and Locking](06-02-isolation-levels-locking.md) | [Next → Storage Engines](07-01-storage-engines.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

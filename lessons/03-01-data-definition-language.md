@@ -647,4 +647,4 @@ AUTO_INCREMENT can create conflicts in distributed systems where multiple server
 
 [← Previous: Query Optimization Fundamentals](02-03-query-optimization.md) | [Next → Data Manipulation Language (DML)](03-02-data-manipulation-language.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

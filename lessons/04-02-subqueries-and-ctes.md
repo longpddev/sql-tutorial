@@ -701,4 +701,4 @@ Recursive CTEs can create infinite loops if there's no proper termination condit
 
 [← Previous: Joins and Relationships](04-01-joins-and-relationships.md) | [Next → Window Functions and Analytics](04-03-window-functions-analytics.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

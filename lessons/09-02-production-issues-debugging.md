@@ -729,4 +729,4 @@ Monitor `Seconds_Behind_Master` (should be low), `Slave_IO_Running` and `Slave_S
 
 [← Previous: Development Phase Issues](09-01-development-phase-issues.md) | [Next → Monitoring and Maintenance](09-03-monitoring-maintenance.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 

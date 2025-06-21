@@ -665,4 +665,4 @@ Use parameterized queries/prepared statements, validate and sanitize all input, 
 
 [← Previous: Data Modeling for Different Workloads](10-01-data-modeling-workloads.md) | [Next → Integration and Migration](10-03-integration-migration.md)
 
-_Last updated: 2025-01-21_ 
+_Last updated: 2025-06-21_ 
