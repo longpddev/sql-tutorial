@@ -1,439 +1,641 @@
 # Project 3: High-Availability System
 
-> **Assessment Project • Operations Focus**  
-> Estimated time: 6-8 hours | Difficulty: ★★★★★
+> **Assessment Project • Final Capstone**  
+> Estimated time: 3-5 days | Difficulty: ★★★★★
 
-## 1. Project Overview
+## 1. Why this matters
 
-Design and implement a high-availability MySQL system with replication, failover, monitoring, and disaster recovery. Build a production-ready infrastructure that maintains 99.9% uptime with automated recovery procedures.
+High availability (HA) is critical for production database systems where downtime means lost revenue, damaged reputation, and frustrated users. This capstone project brings together everything you've learned about MySQL to build a robust, fault-tolerant database system that can handle hardware failures, network partitions, and maintenance operations with minimal service interruption. You'll implement the same patterns used by major companies to achieve 99.9%+ uptime.
 
-**Learning Objectives:**
-- Configure master-slave replication
-- Implement automated failover mechanisms
-- Set up comprehensive monitoring and alerting
-- Design disaster recovery procedures
-- Handle operational challenges
+> **Prerequisites**: This project requires knowledge from [Replication and High Availability](07-03-replication-high-availability.md), [ACID Properties](06-01-acid-properties.md), [Monitoring and Maintenance](09-03-monitoring-maintenance.md), and [Server Configuration](08-03-server-configuration-tuning.md).
 
-> **Prerequisites:** Complete [Replication and High Availability](07-03-replication-high-availability.md) and [Monitoring and Maintenance](09-03-monitoring-maintenance.md).
+## 2. Project Overview
 
-## 2. System Requirements
+You'll design and implement a complete high-availability MySQL system including:
 
-### 2.1 Availability Targets
-- **Uptime**: 99.9% (8.76 hours downtime/year)
-- **RTO**: Recovery Time Objective < 5 minutes
-- **RPO**: Recovery Point Objective < 1 minute data loss
-- **Failover**: Automated detection and recovery
-- **Monitoring**: 24/7 system health monitoring
+- **Master-slave replication** with automatic failover
+- **Load balancing** for read/write traffic distribution  
+- **Monitoring and alerting** for proactive issue detection
+- **Backup and recovery** procedures with point-in-time recovery
+- **Disaster recovery** planning and testing
+- **Performance optimization** under high load
 
-### 2.2 Architecture Components
-- Primary MySQL server (master)
-- Secondary MySQL servers (slaves/replicas)
-- Load balancer for read distribution
-- Monitoring and alerting system
-- Backup and recovery infrastructure
-- Failover automation scripts
+```mermaid
+graph TD
+    A["Application Layer"] --> B["Load Balancer"]
+    B --> C["Master MySQL"]
+    B --> D["Read Replica 1"]
+    B --> E["Read Replica 2"]
+    
+    C --> F["Binary Logs"]
+    F --> D
+    F --> E
+    
+    G["Monitoring System"] --> C
+    G --> D  
+    G --> E
+    
+    H["Backup System"] --> C
+    I["Disaster Recovery Site"] --> H
+    
+    J["Failover Manager"] --> C
+    J --> D
+    J --> E
+```
 
-## 3. High Availability Setup
+## 3. Architecture Requirements
 
-### 3.1 Master-Slave Replication Configuration
+### 3.1 System Components
+
+**Primary Infrastructure**:
+- 1 Master MySQL server (write operations)
+- 2+ Read replica servers (read operations)
+- 1 Load balancer (ProxySQL or HAProxy)
+- 1 Monitoring server (Prometheus + Grafana)
+- 1 Backup server with automated scheduling
+
+**High Availability Features**:
+- Automatic failover (< 30 seconds RTO)
+- Zero data loss replication (RPO = 0)
+- Health checks and monitoring
+- Automated backup verification
+- Disaster recovery site
+
+### 3.2 Performance Targets
+
+- **Availability**: 99.9% uptime (< 9 hours downtime/year)
+- **Recovery Time Objective (RTO)**: < 30 seconds for failover
+- **Recovery Point Objective (RPO)**: 0 seconds (no data loss)
+- **Read throughput**: Handle 10,000+ queries/second
+- **Write throughput**: Handle 1,000+ transactions/second
+
+## 4. Implementation Guide
+
+### 4.1 Phase 1: Master-Slave Replication Setup
+
+First, establish the core replication topology:
 
 ```sql
 -- Master server configuration (my.cnf)
--- [mysqld]
--- server-id = 1
--- log-bin = mysql-bin
--- binlog-format = ROW
--- sync_binlog = 1
--- innodb_flush_log_at_trx_commit = 1
--- gtid_mode = ON
--- enforce_gtid_consistency = ON
+[mysqld]
+server-id = 1
+log-bin = mysql-bin
+binlog-format = ROW
+gtid-mode = ON
+enforce-gtid-consistency = ON
+sync_binlog = 1
+innodb_flush_log_at_trx_commit = 1
 
--- Create replication user on master
-CREATE USER 'replication'@'%' IDENTIFIED BY 'strong_replication_password';
-GRANT REPLICATION SLAVE ON *.* TO 'replication'@'%';
+-- Enable semi-synchronous replication for zero data loss
+plugin-load = "rpl_semi_sync_master=semisync_master.so"
+rpl_semi_sync_master_enabled = 1
+rpl_semi_sync_master_timeout = 1000
+
+-- Performance and reliability settings
+innodb_buffer_pool_size = 70% of RAM
+innodb_log_file_size = 512M
+innodb_flush_method = O_DIRECT
+max_connections = 1000
+```
+
+```sql
+-- Replica server configuration (my.cnf)
+[mysqld]
+server-id = 2  -- Use unique IDs: 3, 4, etc. for additional replicas
+log-bin = mysql-bin
+binlog-format = ROW
+gtid-mode = ON
+enforce-gtid-consistency = ON
+read_only = 1
+super_read_only = 1
+
+-- Semi-synchronous replication slave
+plugin-load = "rpl_semi_sync_slave=semisync_slave.so"
+rpl_semi_sync_slave_enabled = 1
+
+-- Replica-specific optimizations
+slave_parallel_workers = 4
+slave_parallel_type = LOGICAL_CLOCK
+slave_preserve_commit_order = 1
+```
+
+**Setup Replication**:
+```sql
+-- On master: Create replication user
+CREATE USER 'replicator'@'%' IDENTIFIED BY 'strong_password_here';
+GRANT REPLICATION SLAVE ON *.* TO 'replicator'@'%';
 FLUSH PRIVILEGES;
 
--- Show master status
+-- Get master status
 SHOW MASTER STATUS;
 
--- Slave server configuration (my.cnf)
--- [mysqld]
--- server-id = 2
--- relay-log = relay-bin
--- read_only = 1
--- gtid_mode = ON
--- enforce_gtid_consistency = ON
-
--- Configure slave replication
+-- On replica: Configure replication
 CHANGE MASTER TO
-    MASTER_HOST = 'master_server_ip',
-    MASTER_USER = 'replication',
-    MASTER_PASSWORD = 'strong_replication_password',
+    MASTER_HOST = '10.0.1.100',
+    MASTER_USER = 'replicator',
+    MASTER_PASSWORD = 'strong_password_here',
     MASTER_AUTO_POSITION = 1;
 
 START SLAVE;
 SHOW SLAVE STATUS\G
 ```
 
-### 3.2 Multi-Master Setup for High Availability
+### 4.2 Phase 2: Load Balancer Configuration
+
+Set up ProxySQL for intelligent query routing:
 
 ```sql
--- Server A configuration
--- server-id = 1
--- auto_increment_increment = 2
--- auto_increment_offset = 1
--- log-slave-updates = 1
+-- ProxySQL configuration
+-- Install and configure ProxySQL
+-- Add MySQL servers
+INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight) VALUES
+(0, '10.0.1.100', 3306, 1000),  -- Master (write group)
+(1, '10.0.1.101', 3306, 900),   -- Replica 1 (read group)
+(1, '10.0.1.102', 3306, 900);   -- Replica 2 (read group)
 
--- Server B configuration  
--- server-id = 2
--- auto_increment_increment = 2
--- auto_increment_offset = 2
--- log-slave-updates = 1
+-- Configure users
+INSERT INTO mysql_users(username, password, default_hostgroup) VALUES
+('app_user', 'app_password', 1);  -- Default to read group
 
--- Configure bidirectional replication
--- On Server A:
-CHANGE MASTER TO
-    MASTER_HOST = 'server_b_ip',
-    MASTER_USER = 'replication',
-    MASTER_PASSWORD = 'password',
-    MASTER_AUTO_POSITION = 1;
+-- Query routing rules
+INSERT INTO mysql_query_rules(rule_id, match_pattern, destination_hostgroup, apply) VALUES
+(1, '^SELECT.*', 1, 1),          -- Route SELECTs to read replicas
+(2, '^INSERT|UPDATE|DELETE.*', 0, 1);  -- Route writes to master
 
--- On Server B:
-CHANGE MASTER TO
-    MASTER_HOST = 'server_a_ip',
-    MASTER_USER = 'replication',
-    MASTER_PASSWORD = 'password',
-    MASTER_AUTO_POSITION = 1;
+LOAD MYSQL SERVERS TO RUNTIME;
+LOAD MYSQL USERS TO RUNTIME;
+LOAD MYSQL QUERY RULES TO RUNTIME;
+SAVE MYSQL SERVERS TO DISK;
+SAVE MYSQL USERS TO DISK;
+SAVE MYSQL QUERY RULES TO DISK;
 ```
 
-### 3.3 Monitoring and Health Checks
+### 4.3 Phase 3: Monitoring and Alerting
 
+Implement comprehensive monitoring:
+
+```yaml
+# docker-compose.yml for monitoring stack
+version: '3.8'
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter
+    environment:
+      - DATA_SOURCE_NAME=monitor:password@(mysql-master:3306)/
+    ports:
+      - "9104:9104"
+
+volumes:
+  grafana-storage:
+```
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'mysql-master'
+    static_configs:
+      - targets: ['10.0.1.100:9104']
+  - job_name: 'mysql-replica-1'
+    static_configs:
+      - targets: ['10.0.1.101:9104']
+  - job_name: 'mysql-replica-2'
+    static_configs:
+      - targets: ['10.0.1.102:9104']
+
+rule_files:
+  - "mysql_alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+```
+
+**Key Monitoring Metrics**:
 ```sql
--- Create monitoring database
-CREATE DATABASE monitoring;
-USE monitoring;
-
--- Health check table
-CREATE TABLE health_checks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    server_name VARCHAR(50) NOT NULL,
-    check_type ENUM('replication', 'disk_space', 'connections', 'performance') NOT NULL,
-    status ENUM('healthy', 'warning', 'critical') NOT NULL,
-    message TEXT,
-    check_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_server_time (server_name, check_time),
-    INDEX idx_status (status)
+-- Custom monitoring queries
+SELECT 
+    VARIABLE_NAME,
+    VARIABLE_VALUE
+FROM performance_schema.global_status 
+WHERE VARIABLE_NAME IN (
+    'Connections',
+    'Threads_running',
+    'Queries',
+    'Slow_queries',
+    'Innodb_buffer_pool_read_requests',
+    'Innodb_buffer_pool_reads'
 );
 
--- Replication monitoring procedure
-DELIMITER //
-CREATE PROCEDURE CheckReplicationHealth()
-BEGIN
-    DECLARE v_slave_running VARCHAR(10);
-    DECLARE v_seconds_behind INT;
-    DECLARE v_status VARCHAR(20) DEFAULT 'healthy';
-    DECLARE v_message TEXT DEFAULT '';
-    
-    -- Check slave status
-    SELECT 
-        Slave_SQL_Running,
-        Seconds_Behind_Master
-    INTO v_slave_running, v_seconds_behind
-    FROM (SHOW SLAVE STATUS) AS slave_status;
-    
-    -- Determine health status
-    IF v_slave_running != 'Yes' THEN
-        SET v_status = 'critical';
-        SET v_message = 'Slave SQL thread not running';
-    ELSEIF v_seconds_behind > 60 THEN
-        SET v_status = 'warning';
-        SET v_message = CONCAT('Replication lag: ', v_seconds_behind, ' seconds');
-    ELSEIF v_seconds_behind > 300 THEN
-        SET v_status = 'critical';
-        SET v_message = CONCAT('Critical replication lag: ', v_seconds_behind, ' seconds');
-    ELSE
-        SET v_message = CONCAT('Replication healthy, lag: ', COALESCE(v_seconds_behind, 0), ' seconds');
-    END IF;
-    
-    -- Record health check
-    INSERT INTO health_checks (server_name, check_type, status, message)
-    VALUES (@@hostname, 'replication', v_status, v_message);
-END //
+-- Replication lag monitoring
+SELECT 
+    SECONDS_BEHIND_MASTER,
+    MASTER_LOG_FILE,
+    READ_MASTER_LOG_POS,
+    RELAY_LOG_FILE,
+    RELAY_LOG_POS
+FROM performance_schema.replication_connection_status;
 
--- Performance monitoring procedure
-CREATE PROCEDURE CheckPerformanceHealth()
-BEGIN
-    DECLARE v_threads_connected INT;
-    DECLARE v_threads_running INT;
-    DECLARE v_status VARCHAR(20) DEFAULT 'healthy';
-    DECLARE v_message TEXT;
-    
-    -- Get connection metrics
-    SELECT VARIABLE_VALUE INTO v_threads_connected
-    FROM performance_schema.global_status
-    WHERE VARIABLE_NAME = 'Threads_connected';
-    
-    SELECT VARIABLE_VALUE INTO v_threads_running
-    FROM performance_schema.global_status
-    WHERE VARIABLE_NAME = 'Threads_running';
-    
-    -- Check thresholds
-    IF v_threads_connected > 100 THEN
-        SET v_status = 'warning';
-        SET v_message = CONCAT('High connection count: ', v_threads_connected);
-    END IF;
-    
-    IF v_threads_running > 50 THEN
-        SET v_status = 'critical';
-        SET v_message = CONCAT(v_message, ' High running threads: ', v_threads_running);
-    END IF;
-    
-    IF v_status = 'healthy' THEN
-        SET v_message = CONCAT('Performance healthy - Connections: ', v_threads_connected, ', Running: ', v_threads_running);
-    END IF;
-    
-    INSERT INTO health_checks (server_name, check_type, status, message)
-    VALUES (@@hostname, 'performance', v_status, v_message);
-END //
-
-DELIMITER ;
-
--- Schedule health checks
-CREATE EVENT health_check_replication
-ON SCHEDULE EVERY 30 SECOND
-DO CALL CheckReplicationHealth();
-
-CREATE EVENT health_check_performance  
-ON SCHEDULE EVERY 1 MINUTE
-DO CALL CheckPerformanceHealth();
+-- Check for replication errors
+SELECT * FROM performance_schema.replication_applier_status_by_worker
+WHERE LAST_ERROR_NUMBER != 0;
 ```
 
-### 3.4 Automated Failover Script
+### 4.4 Phase 4: Automated Backup System
+
+Implement comprehensive backup strategy:
 
 ```bash
 #!/bin/bash
-# failover.sh - Automated MySQL failover script
+# automated_backup.sh
 
-MASTER_HOST="10.0.1.10"
-SLAVE_HOST="10.0.1.11"
-VIP="10.0.1.100"  # Virtual IP for applications
-MYSQL_USER="monitor"
-MYSQL_PASS="monitor_password"
+set -euo pipefail
 
-# Function to check MySQL connectivity
-check_mysql() {
-    local host=$1
-    mysql -h $host -u $MYSQL_USER -p$MYSQL_PASS -e "SELECT 1" &>/dev/null
-    return $?
-}
+# Configuration
+MYSQL_USER="backup_user"
+MYSQL_PASSWORD="backup_password"
+MYSQL_HOST="10.0.1.100"
+BACKUP_DIR="/backups/mysql"
+RETENTION_DAYS=30
+S3_BUCKET="company-mysql-backups"
 
-# Function to promote slave to master
-promote_slave() {
-    echo "Promoting slave $SLAVE_HOST to master..."
-    
-    # Stop slave processes
-    mysql -h $SLAVE_HOST -u $MYSQL_USER -p$MYSQL_PASS -e "STOP SLAVE;"
-    
-    # Reset slave configuration
-    mysql -h $SLAVE_HOST -u $MYSQL_USER -p$MYSQL_PASS -e "RESET SLAVE ALL;"
-    
-    # Enable writes on new master
-    mysql -h $SLAVE_HOST -u $MYSQL_USER -p$MYSQL_PASS -e "SET GLOBAL read_only = 0;"
-    
-    # Move VIP to new master
-    # This would typically involve updating load balancer configuration
-    # or moving a virtual IP address
-    
-    echo "Failover completed. New master: $SLAVE_HOST"
-    
-    # Send alert notification
-    send_alert "CRITICAL: MySQL failover completed. New master: $SLAVE_HOST"
-}
+# Create timestamped backup directory
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_PATH="${BACKUP_DIR}/${TIMESTAMP}"
+mkdir -p "${BACKUP_PATH}"
 
-# Function to send alerts
-send_alert() {
-    local message="$1"
-    # Send email, Slack notification, etc.
-    echo "$message" | mail -s "MySQL Failover Alert" admin@company.com
-}
+# Full backup using mysqldump
+echo "Starting full backup at $(date)"
+mysqldump \
+    --user="${MYSQL_USER}" \
+    --password="${MYSQL_PASSWORD}" \
+    --host="${MYSQL_HOST}" \
+    --single-transaction \
+    --routines \
+    --triggers \
+    --all-databases \
+    --master-data=2 \
+    --flush-logs \
+    --hex-blob \
+    --quick \
+    --lock-tables=false \
+    --compress | gzip > "${BACKUP_PATH}/full_backup.sql.gz"
 
-# Main failover logic
-main() {
-    echo "Checking master health..."
-    
-    if ! check_mysql $MASTER_HOST; then
-        echo "Master $MASTER_HOST is down. Checking slave..."
-        
-        if check_mysql $SLAVE_HOST; then
-            echo "Slave $SLAVE_HOST is healthy. Initiating failover..."
-            promote_slave
-        else
-            echo "CRITICAL: Both master and slave are down!"
-            send_alert "CRITICAL: Both MySQL servers are down!"
-            exit 1
-        fi
-    else
-        echo "Master $MASTER_HOST is healthy."
-    fi
-}
+# Binary log backup for point-in-time recovery
+mysql \
+    --user="${MYSQL_USER}" \
+    --password="${MYSQL_PASSWORD}" \
+    --host="${MYSQL_HOST}" \
+    --execute="FLUSH LOGS;"
 
-# Run health check every 30 seconds
-while true; do
-    main
-    sleep 30
-done
+# Copy recent binary logs
+BINLOG_DIR="/var/lib/mysql"
+find "${BINLOG_DIR}" -name "mysql-bin.*" -newer "${BACKUP_PATH}" -exec cp {} "${BACKUP_PATH}/" \;
+
+# Verify backup integrity
+echo "Verifying backup integrity..."
+if gzip -t "${BACKUP_PATH}/full_backup.sql.gz"; then
+    echo "Backup verification successful"
+else
+    echo "Backup verification failed!" >&2
+    exit 1
+fi
+
+# Upload to S3
+aws s3 sync "${BACKUP_PATH}" "s3://${S3_BUCKET}/${TIMESTAMP}/"
+
+# Cleanup old backups
+find "${BACKUP_DIR}" -type d -mtime +${RETENTION_DAYS} -exec rm -rf {} +
+
+echo "Backup completed successfully at $(date)"
 ```
 
-### 3.5 Backup and Recovery Strategy
+**Point-in-Time Recovery Script**:
+```bash
+#!/bin/bash
+# point_in_time_recovery.sh
 
-```sql
--- Backup procedures
-DELIMITER //
+BACKUP_DATE="$1"
+RECOVERY_TIME="$2"
+MYSQL_DATA_DIR="/var/lib/mysql"
 
-CREATE PROCEDURE CreateFullBackup()
-BEGIN
-    DECLARE backup_file VARCHAR(255);
-    DECLARE backup_command TEXT;
-    
-    SET backup_file = CONCAT('/backups/full_backup_', DATE_FORMAT(NOW(), '%Y%m%d_%H%i%s'), '.sql');
-    SET backup_command = CONCAT('mysqldump --single-transaction --routines --triggers --all-databases > ', backup_file);
-    
-    -- Log backup start
-    INSERT INTO monitoring.backup_log (backup_type, status, start_time, filename)
-    VALUES ('full', 'started', NOW(), backup_file);
-    
-    -- Execute backup (this would be done externally)
-    -- System command execution would happen outside MySQL
-    
-    -- Log backup completion (would be updated by external script)
-    -- UPDATE monitoring.backup_log SET status = 'completed', end_time = NOW() WHERE filename = backup_file;
-END //
+if [[ -z "$BACKUP_DATE" || -z "$RECOVERY_TIME" ]]; then
+    echo "Usage: $0 <backup_date> <recovery_time>"
+    echo "Example: $0 20241201_120000 '2024-12-01 14:30:00'"
+    exit 1
+fi
 
-CREATE PROCEDURE CreateIncrementalBackup()
-BEGIN
-    DECLARE last_binlog VARCHAR(255);
-    DECLARE backup_dir VARCHAR(255) DEFAULT '/backups/incremental/';
-    
-    -- Get current binary log position
-    SELECT File INTO last_binlog FROM (SHOW MASTER STATUS) AS ms;
-    
-    -- Copy binary logs for incremental backup
-    -- This would typically be done with external tools like mysqlbinlog
-    
-    INSERT INTO monitoring.backup_log (backup_type, status, start_time, filename)
-    VALUES ('incremental', 'completed', NOW(), CONCAT(backup_dir, last_binlog));
-END //
+# Stop MySQL
+systemctl stop mysql
 
-DELIMITER ;
+# Restore from full backup
+echo "Restoring from backup date: $BACKUP_DATE"
+gunzip -c "/backups/mysql/${BACKUP_DATE}/full_backup.sql.gz" | mysql
 
--- Backup logging table
-CREATE TABLE monitoring.backup_log (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    backup_type ENUM('full', 'incremental') NOT NULL,
-    status ENUM('started', 'completed', 'failed') NOT NULL,
-    start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    end_time TIMESTAMP NULL,
-    filename VARCHAR(500),
-    file_size BIGINT,
-    error_message TEXT,
-    INDEX idx_type_time (backup_type, start_time)
-);
+# Apply binary logs up to recovery time
+echo "Applying binary logs up to: $RECOVERY_TIME"
+mysqlbinlog \
+    --stop-datetime="$RECOVERY_TIME" \
+    /backups/mysql/${BACKUP_DATE}/mysql-bin.* | mysql
 
--- Schedule backups
-CREATE EVENT daily_full_backup
-ON SCHEDULE EVERY 1 DAY STARTS '2024-01-01 02:00:00'
-DO CALL CreateFullBackup();
+# Start MySQL
+systemctl start mysql
 
-CREATE EVENT hourly_incremental_backup
-ON SCHEDULE EVERY 1 HOUR
-DO CALL CreateIncrementalBackup();
+echo "Point-in-time recovery completed to: $RECOVERY_TIME"
 ```
 
-## 4. Implementation Tasks
+### 4.5 Phase 5: Automatic Failover System
 
-### Task 1: Replication Setup (2 hours)
-- Configure master-slave replication
-- Test replication with sample data
-- Verify GTID-based replication
+Implement automated failover using MHA (Master High Availability):
 
-### Task 2: Monitoring Implementation (2 hours)
-- Create health check procedures
-- Set up automated monitoring
-- Configure alerting mechanisms
+```perl
+# /etc/mha/app1.cnf
+[server default]
+manager_log=/var/log/mha/app1/manager.log
+manager_workdir=/var/log/mha/app1
+master_binlog_dir=/var/lib/mysql
+user=mha
+password=mha_password
+ping_interval=3
+repl_user=replicator
+repl_password=replicator_password
+ssh_user=root
 
-### Task 3: Failover Automation (2 hours)
-- Implement failover detection
-- Create promotion procedures
-- Test failover scenarios
+[server1]
+hostname=10.0.1.100
+port=3306
+candidate_master=1
 
-### Task 4: Backup Strategy (1.5 hours)
-- Set up automated backups
-- Test recovery procedures
-- Document recovery processes
+[server2]
+hostname=10.0.1.101
+port=3306
+candidate_master=1
+check_repl_delay=0
 
-### Task 5: Load Testing (1 hour)
-- Test system under load
-- Verify failover during traffic
-- Measure recovery times
-
-## 5. Testing Scenarios
-
-### 5.1 Planned Failover Test
-```sql
--- Simulate planned maintenance
--- 1. Stop writes to master
-SET GLOBAL read_only = 1;
-
--- 2. Wait for slave to catch up
-SHOW SLAVE STATUS\G
-
--- 3. Promote slave to master
--- 4. Redirect application traffic
--- 5. Verify system functionality
+[server3]
+hostname=10.0.1.102
+port=3306
+no_master=1
 ```
 
-### 5.2 Unplanned Failover Test
+**Custom Failover Script**:
+```bash
+#!/bin/bash
+# custom_failover.sh
+
+NEW_MASTER_HOST="$1"
+OLD_MASTER_HOST="$2"
+
+echo "Failover initiated: $OLD_MASTER_HOST -> $NEW_MASTER_HOST"
+
+# Update ProxySQL to point to new master
+mysql -h proxysql-host -P 6032 -u admin -padmin <<EOF
+UPDATE mysql_servers SET hostgroup_id=0 WHERE hostname='$NEW_MASTER_HOST';
+UPDATE mysql_servers SET hostgroup_id=1 WHERE hostname='$OLD_MASTER_HOST';
+LOAD MYSQL SERVERS TO RUNTIME;
+SAVE MYSQL SERVERS TO DISK;
+EOF
+
+echo "Failover completed successfully"
+```
+
+## 5. Testing and Validation
+
+### 5.1 Failure Scenarios Testing
+
+**Test 1: Master Server Failure**
 ```bash
 # Simulate master failure
 sudo systemctl stop mysql  # On master server
 
-# Monitor failover automation
-tail -f /var/log/mysql-failover.log
+# Verify automatic failover occurs
+# Check failover logs and verify new master is serving writes
+```
 
-# Verify application connectivity
-mysql -h $VIP -u app_user -p -e "SELECT NOW();"
+**Test 2: Performance Testing**
+```python
+#!/usr/bin/env python3
+import mysql.connector
+import threading
+import time
+import random
+
+class MySQLLoadTester:
+    def __init__(self, host, port, user, password, database):
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+        self.database = database
+        self.stats = {'reads': 0, 'writes': 0, 'errors': 0}
+
+    def get_connection(self):
+        return mysql.connector.connect(
+            host=self.host,
+            port=self.port,
+            user=self.user,
+            password=self.password,
+            database=self.database,
+            autocommit=True
+        )
+
+    def read_workload(self):
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            queries = [
+                "SELECT COUNT(*) FROM orders WHERE status = 'completed'",
+                "SELECT * FROM customers WHERE country = 'USA' LIMIT 10"
+            ]
+            
+            query = random.choice(queries)
+            cursor.execute(query)
+            cursor.fetchall()
+            
+            self.stats['reads'] += 1
+            cursor.close()
+            conn.close()
+            
+        except Exception as e:
+            self.stats['errors'] += 1
+            print(f"Read error: {e}")
+
+    def write_workload(self):
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            customer_id = random.randint(1, 1000)
+            total = round(random.uniform(10.0, 500.0), 2)
+            
+            cursor.execute(
+                "INSERT INTO orders (customer_id, total, status, order_date) "
+                "VALUES (%s, %s, 'pending', NOW())",
+                (customer_id, total)
+            )
+            
+            self.stats['writes'] += 1
+            cursor.close()
+            conn.close()
+            
+        except Exception as e:
+            self.stats['errors'] += 1
+            print(f"Write error: {e}")
+
+    def run_load_test(self, duration_seconds=300):
+        print(f"Starting load test for {duration_seconds} seconds...")
+        
+        start_time = time.time()
+        threads = []
+        
+        # Start read threads
+        for _ in range(50):
+            t = threading.Thread(target=self._continuous_reads, args=(start_time + duration_seconds,))
+            t.start()
+            threads.append(t)
+        
+        # Start write threads
+        for _ in range(10):
+            t = threading.Thread(target=self._continuous_writes, args=(start_time + duration_seconds,))
+            t.start()
+            threads.append(t)
+        
+        # Wait for all threads to complete
+        for t in threads:
+            t.join()
+        
+        # Print statistics
+        elapsed = time.time() - start_time
+        print(f"Load test completed in {elapsed:.2f} seconds")
+        print(f"Total reads: {self.stats['reads']} ({self.stats['reads']/elapsed:.2f}/sec)")
+        print(f"Total writes: {self.stats['writes']} ({self.stats['writes']/elapsed:.2f}/sec)")
+        print(f"Total errors: {self.stats['errors']}")
+
+    def _continuous_reads(self, end_time):
+        while time.time() < end_time:
+            self.read_workload()
+            time.sleep(0.01)
+
+    def _continuous_writes(self, end_time):
+        while time.time() < end_time:
+            self.write_workload()
+            time.sleep(0.1)
+
+if __name__ == "__main__":
+    tester = MySQLLoadTester(
+        host='10.0.1.200',  # ProxySQL host
+        port=6033,
+        user='app_user',
+        password='app_password',
+        database='ecommerce'
+    )
+    
+    tester.run_load_test(duration_seconds=300)
 ```
 
 ## 6. Deliverables
 
-1. **Complete HA setup** with master-slave replication
-2. **Monitoring system** with health checks and alerting
-3. **Automated failover** scripts and procedures
-4. **Backup and recovery** strategy with testing
-5. **Load testing results** and performance metrics
-6. **Operational runbook** for maintenance procedures
-7. **Disaster recovery plan** with RTO/RPO targets
+### 6.1 Technical Deliverables
+
+1. **Architecture Diagram**: Complete system topology
+2. **Configuration Files**: All server and application configs
+3. **Automation Scripts**: Backup, monitoring, and failover scripts
+4. **Test Results**: Performance benchmarks and failure scenario outcomes
+5. **Monitoring Setup**: Grafana dashboards and alerting rules
+
+### 6.2 Documentation Deliverables
+
+1. **Installation Guide**: Step-by-step setup instructions
+2. **Operational Runbooks**: Procedures for common scenarios
+3. **Disaster Recovery Plan**: Complete DR procedures and testing
+4. **Performance Tuning Guide**: Optimization recommendations
+5. **Troubleshooting Guide**: Common issues and solutions
+
+### 6.3 Presentation
+
+Prepare a 30-minute presentation covering:
+- Architecture overview and design decisions
+- High availability features and RTO/RPO achievements
+- Performance test results and scalability limits
+- Lessons learned and recommendations for production
 
 ## 7. Evaluation Criteria
 
-- **Architecture (25%)**: Proper HA design and implementation
-- **Automation (25%)**: Effective failover and monitoring automation
-- **Reliability (20%)**: System meets availability targets
-- **Recovery (15%)**: Backup and disaster recovery procedures
-- **Documentation (15%)**: Comprehensive operational procedures
+Your project will be evaluated on:
 
-## 8. Advanced Extensions
+**Technical Implementation (40%)**
+- Correct replication setup with GTID
+- Functional automatic failover
+- Comprehensive monitoring and alerting
+- Robust backup and recovery procedures
 
-- **Multi-region setup** with geographic distribution
-- **Database clustering** with MySQL Cluster (NDB)
-- **Container orchestration** with Kubernetes
-- **Cloud integration** with managed services
-- **Advanced monitoring** with Prometheus/Grafana
+**Performance and Reliability (30%)**
+- Meeting RTO/RPO targets
+- Handling target throughput under load
+- Successful failure scenario testing
+- Monitoring effectiveness
+
+**Documentation and Operations (20%)**
+- Clear, actionable runbooks
+- Complete system documentation
+- Disaster recovery procedures
+- Troubleshooting guides
+
+**Best Practices and Security (10%)**
+- Proper security configuration
+- Following MySQL best practices
+- Code quality in automation scripts
+- Monitoring and alerting coverage
+
+## 8. Common Pitfalls
+
+### 8.1 Replication Issues
+**Problem**: Replication lag during high write loads
+**Solution**: Use parallel replication and optimize replica hardware
+
+### 8.2 Split-Brain Scenarios
+**Problem**: Multiple masters after network partition
+**Solution**: Implement proper fencing and use semi-synchronous replication
+
+### 8.3 Backup Verification
+**Problem**: Backups that can't be restored
+**Solution**: Regularly test restore procedures and verify backup integrity
+
+### 8.4 Monitoring Gaps
+**Problem**: Missing critical failure scenarios
+**Solution**: Implement comprehensive health checks and synthetic monitoring
+
+## 9. Further Reading
+
+- [MySQL High Availability Solutions](https://dev.mysql.com/doc/mysql-ha-scalability/en/)
+- [ProxySQL Documentation](https://proxysql.com/documentation/)
+- [MySQL Performance Tuning Guide](https://dev.mysql.com/doc/refman/8.0/en/optimization.html)
+- [Disaster Recovery Best Practices](https://www.mysql.com/products/enterprise/backup.html)
 
 ---
 
 **Navigation**
 
-[← Previous: Data Warehouse Implementation Project](project-02-data-warehouse.md)
+[← Previous: Data Warehouse Implementation](project-02-data-warehouse.md) | [Back to Tutorial Index](README.md)
 
 _Last updated: 2025-01-21_ 
