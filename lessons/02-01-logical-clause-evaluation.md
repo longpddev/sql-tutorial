@@ -169,6 +169,55 @@ LIMIT 10;        -- Gets 10 random products
 -- This is correct behavior, not a bug
 ```
 
+### 3.5 Important Note: LIMIT Optimization in Practice
+
+**⚠️ Critical Understanding**: While LIMIT appears last in logical evaluation order, modern query optimizers implement **early termination optimization**. This means:
+
+```sql
+-- MYTH: This query is slow because LIMIT runs last
+SELECT c.name, o.total
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+WHERE c.country = 'USA'
+LIMIT 1;
+
+-- REALITY: Optimizer can use early termination strategies:
+-- - Stop scanning after finding 1 qualifying row
+-- - Use nested loop joins that terminate early
+-- - Choose index seeks for faster first-match finding
+```
+
+**Demonstration with EXPLAIN:**
+```sql
+-- Compare these two queries with EXPLAIN
+-- Query 1: Without LIMIT
+EXPLAIN SELECT c.name, o.total
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+WHERE c.country = 'USA';
+
+-- Query 2: With LIMIT 1  
+EXPLAIN SELECT c.name, o.total
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+WHERE c.country = 'USA'
+LIMIT 1;
+
+-- Often you'll see different execution plans!
+-- The optimizer may choose nested loop for LIMIT version
+-- and hash join for the version without LIMIT
+```
+
+**When LIMIT optimization is most effective:**
+- **Selective WHERE conditions** combined with LIMIT
+- **ORDER BY with matching indexes** + LIMIT (top-N optimization)
+- **JOIN queries** where early termination can avoid processing entire tables
+
+**When it's less effective:**
+- **GROUP BY with LIMIT** (must process all groups first)
+- **DISTINCT with LIMIT** (may need to see many rows to find distinct ones)
+- **Complex subqueries** where LIMIT can't be pushed down
+
 ## 4. Hands-On Practice
 
 Let's practice with a sample dataset:
@@ -237,6 +286,46 @@ LIMIT 3;
    HAVING SUM(total) > 1000 AND customer_id IN (
        SELECT id FROM customers WHERE country = 'USA'
    );
+   ```
+
+4. **LIMIT Optimization Exercise**: Try this to see early termination in action:
+   ```sql
+   -- Create a larger test dataset
+   INSERT INTO employees (name, department, salary, hire_date)
+   SELECT 
+       CONCAT('Employee ', n),
+       CASE WHEN n % 3 = 0 THEN 'Sales' 
+            WHEN n % 3 = 1 THEN 'Marketing' 
+            ELSE 'Support' END,
+       50000 + (n % 50000),
+       DATE_ADD('2020-01-01', INTERVAL (n % 1000) DAY)
+   FROM (
+       SELECT a.N + b.N * 10 + c.N * 100 + d.N * 1000 + 1 n
+       FROM 
+           (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a
+       CROSS JOIN (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b
+       CROSS JOIN (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) c
+       CROSS JOIN (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) d
+   ) numbers WHERE n <= 10000;
+   
+   -- Now compare execution plans and timing:
+   
+   -- Query A: No LIMIT (processes all matching rows)
+   EXPLAIN FORMAT=JSON
+   SELECT e.name, s.sale_amount 
+   FROM employees e
+   JOIN sales s ON e.id = s.employee_id
+   WHERE e.department = 'Sales';
+   
+   -- Query B: With LIMIT 1 (can use early termination)
+   EXPLAIN FORMAT=JSON  
+   SELECT e.name, s.sale_amount
+   FROM employees e
+   JOIN sales s ON e.id = s.employee_id
+   WHERE e.department = 'Sales'
+   LIMIT 1;
+   
+   -- You'll likely see different join algorithms or access methods!
    ```
 
 ## 5. Common Pitfalls
